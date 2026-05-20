@@ -19,7 +19,7 @@ public class GameEngine {
     public boolean gameOver = false;
     public int gameOverTicks = 0;
 
-    // --- ДОБАВЛЕНО: Управление появлением мема ---
+    // --- Zarządzanie wyświetlaniem mema ---
     public boolean showMeme = false;
     public int memeTicks = 0;
 
@@ -66,38 +66,55 @@ public class GameEngine {
     public static class Song {
         public String title;
         public String audioPath;
-        public Song(String title, String audioPath) { this.title = title; this.audioPath = audioPath; }
+
+        public Song(String title, String audioPath) {
+            this.title = title;
+            this.audioPath = audioPath;
+        }
     }
 
     public static class Note {
         public long timeMs;
         public int x, y, hp;
-        public Note(long timeMs, int x, int y, int hp) { this.timeMs = timeMs; this.x = x; this.y = y; this.hp = hp; }
+
+        public Note(long timeMs, int x, int y, int hp) {
+            this.timeMs = timeMs;
+            this.x = x;
+            this.y = y;
+            this.hp = hp;
+        }
     }
 
     public GameEngine() {
-        try { patterns = PatternLoader.load("patterns.txt"); } catch (Exception ignored) {}
+        try {
+            patterns = PatternLoader.load("patterns.txt");
+        } catch (Exception ignored) {
+        }
 
         songList.add(new Song("Recall", "E:\\OSU_Question\\resources\\background_music\\gabriawll - Recall [NCS Release].wav"));
         songList.add(new Song("Old School", "E:\\OSU_Question\\resources\\background_music\\More Plastic - Old School [NCS Release].wav"));
         songList.add(new Song("LOOP", "E:\\OSU_Question\\resources\\background_music\\SXYGX, ACIGODE, LANCELOT - LOOP [NCS Release].wav"));
-
-        // --- ИСПРАВЛЕНИЕ: Теперь путь ведет в background_music, как на твоем скриншоте! ---
         songList.add(new Song("Faster", "E:\\OSU_Question\\resources\\background_music\\Zambolino - Faster.wav"));
     }
 
     private InputStream getResourceStream(String path) {
         try {
             File file = new File(path);
-            if (file.exists()) return new java.io.FileInputStream(file);
+            if (file.exists()) {
+                return new java.io.FileInputStream(file);
+            }
 
             String cleanPath = path.replace("background_music/", "");
             File bgFile = new File("E:\\OSU_Question\\resources\\background_music\\" + cleanPath);
-            if (bgFile.exists()) return new java.io.FileInputStream(bgFile);
+            if (bgFile.exists()) {
+                return new java.io.FileInputStream(bgFile);
+            }
 
             String p = path.startsWith("/") ? path.substring(1) : path;
             InputStream is = getClass().getClassLoader().getResourceAsStream(p);
-            if (is == null) is = getClass().getResourceAsStream("/" + p);
+            if (is == null) {
+                is = getClass().getResourceAsStream("/" + p);
+            }
             return is;
         } catch (Exception e) {
             return null;
@@ -108,24 +125,52 @@ public class GameEngine {
         updateMusicFade();
 
         if (inSongMenu) {
-            if (random.nextInt(100) < 4) particles.add(createParticle(random.nextInt(1600), random.nextInt(900), hpColor(random.nextInt(5) + 1), 1, random.nextInt(5) + 1));
-            particles.removeIf(p -> { p.update(); boolean rem = p.alpha <= 0; if (rem) recycleParticle(p); return rem; });
+            if (random.nextInt(100) < 4) {
+                particles.add(createParticle(random.nextInt(1600), random.nextInt(900), hpColor(random.nextInt(5) + 1), 1, random.nextInt(5) + 1));
+            }
+            particles.removeIf(p -> {
+                p.update();
+                boolean rem = p.alpha <= 0;
+                if (rem) {
+                    recycleParticle(p);
+                }
+                return rem;
+            });
             return;
         }
 
         if (gameOver) {
             gameOverTicks++;
-            if (showMeme) memeTicks++; // Считаем время для плавного появления
-            particles.removeIf(p -> { p.update(); boolean rem = p.alpha <= 0; if (rem) recycleParticle(p); return rem; });
+            if (showMeme) {
+                memeTicks++; // Liczymy czas do płynnego pojawienia się
+            }
+            particles.removeIf(p -> {
+                p.update();
+                boolean rem = p.alpha <= 0;
+                if (rem) {
+                    recycleParticle(p);
+                }
+                return rem;
+            });
             return;
         }
 
         if (isPaused || resumeCountdown > 0) {
-            if (resumeCountdown > 0) resumeCountdown--; return;
+            if (resumeCountdown > 0) {
+                resumeCountdown--;
+            }
+            return;
         }
 
         if (restarting) {
-            if (--restartTimer <= 0) { restarting = false; if (pendingAudioPath != null) { playMusic(pendingAudioPath); pendingAudioPath = null; } }
+            restartTimer--;
+            if (restartTimer <= 0) {
+                restarting = false;
+                if (pendingAudioPath != null) {
+                    playMusic(pendingAudioPath);
+                    pendingAudioPath = null;
+                }
+            }
             return;
         }
 
@@ -139,29 +184,47 @@ public class GameEngine {
             }
         } else if (songStarted && activeBeatmap.isEmpty() && targets.isEmpty() && !gameOver) {
             gameOver = true;
-            if (bgMusicClip != null) bgMusicClip.stop();
+            if (bgMusicClip != null) {
+                bgMusicClip.stop();
+            }
         }
 
         updateShake();
+
         targets.removeIf(t -> {
             t.update(currentMs);
-            if (t.shouldRemove && !t.isFailing && t.brightness <= 0) score -= 10;
-            if (t.shouldRemove) recycleTarget(t);
+            if (t.shouldRemove && !t.isFailing && t.brightness <= 0) {
+                score -= 10;
+            }
+            if (t.shouldRemove) {
+                recycleTarget(t);
+            }
             return t.shouldRemove;
         });
-        particles.removeIf(p -> { p.update(); boolean rem = p.alpha <= 0; if (rem) recycleParticle(p); return rem; });
 
-        // ЛОГИКА ПОРАЖЕНИЯ (ФЛЕШКА -> СССР + Картинка)
+        particles.removeIf(p -> {
+            p.update();
+            boolean rem = p.alpha <= 0;
+            if (rem) {
+                recycleParticle(p);
+            }
+            return rem;
+        });
+
+        // LOGIKA PRZEGRANEJ (FLASHBANG -> ZSRR + OBRAZEK)
         if (score < 0 && !gameOver) {
             gameOver = true;
             gameOverTicks = 0;
-            showMeme = false; // Скрываем картинку
+            showMeme = false; // Ukrywamy obrazek na początku
             memeTicks = 0;
-            if (bgMusicClip != null) bgMusicClip.stop();
+
+            if (bgMusicClip != null) {
+                bgMusicClip.stop();
+            }
             targets.clear();
             activeBeatmap.clear();
 
-            for(int i = 0; i < 150; i++) {
+            for (int i = 0; i < 150; i++) {
                 int px = random.nextInt(1920);
                 int py = random.nextInt(1080);
                 int gray = 100 + random.nextInt(100);
@@ -169,15 +232,16 @@ public class GameEngine {
             }
 
             new Thread(() -> {
-                // 1. Сначала флешка
+
                 playSound("flashbang-full-out.wav");
 
                 try {
-                    // Ждем 1.5 секунды
-                    Thread.sleep(1500);
-                } catch (InterruptedException e) {}
 
-                // 2. Потом, если не вышли в меню, включаем СССР и показываем картинку
+                    Thread.sleep(1500);
+                } catch (InterruptedException e) {
+                }
+
+                // 2. Potem, jeśli nie wyszliśmy do menu, włączamy hymn ZSRR i pokazujemy mema
                 if (gameOver && !restarting) {
                     showMeme = true;
                     playSound("sssr-mem.wav");
@@ -189,7 +253,7 @@ public class GameEngine {
     public void analyzeAudioAndGenerateMap(String audioPath) {
         activeBeatmap.clear();
         totalPossibleScore = 0;
-        System.out.println("--- Анализ ритма: " + audioPath);
+        System.out.println("--- Analiza rytmu (Zwiększona ilość kwadratów!): " + audioPath);
 
         try (InputStream is = getResourceStream(audioPath)) {
             if (is == null) return;
@@ -204,36 +268,57 @@ public class GameEngine {
 
             byte[] buffer = new byte[1024 * decodedFormat.getFrameSize()];
             int bytesRead;
-            long totalFramesRead = 0, lastBeatTime = 0;
+            long totalFramesRead = 0;
+            long lastBeatTime = 0;
             List<Float> energyHistory = new ArrayList<>();
 
             while ((bytesRead = ais.read(buffer)) != -1) {
                 long sum = 0;
                 for (int i = 0; i < bytesRead; i += 2) {
-                    int sample = (buffer[i+1] << 8) | (buffer[i] & 0xFF);
+                    int sample = (buffer[i + 1] << 8) | (buffer[i] & 0xFF);
                     sum += sample * sample;
                 }
                 float rms = (float) Math.sqrt((double) sum / (bytesRead / 2));
                 energyHistory.add(rms);
 
-                float localAvg = 0; int count = 0;
+                float localAvg = 0;
+                int count = 0;
                 for (int i = Math.max(0, energyHistory.size() - 60); i < energyHistory.size() - 1; i++) {
-                    localAvg += energyHistory.get(i); count++;
+                    localAvg += energyHistory.get(i);
+                    count++;
                 }
-                if (count > 0) localAvg /= count;
+                if (count > 0) {
+                    localAvg /= count;
+                }
 
-                if (rms > 1.5f * localAvg && rms > 400) {
+                // --- BARDZIEJ AGRESYWNE ŁAPANIE BITÓW ---
+                if (rms > 1.2f * localAvg && rms > 200) {
                     long actualTimeMs = (long) ((totalFramesRead / decodedFormat.getSampleRate()) * 1000);
 
-                    if (actualTimeMs - lastBeatTime > 450) {
-                        int phaseMaxHp = Math.min(5, 2 + (int)(actualTimeMs / 30000));
+                    // --- BARDZO SZYBKI SPAWN KWADRATÓW ---
+                    int gap = 200;
+                    if (actualTimeMs < 10000) {
+                        gap = 600;      // 0-10 sek: Tylko lekka rozgrzewka (600ms)
+                    } else if (actualTimeMs < 30000) {
+                        gap = 250;      // 10-30 sek: Zaczyna się akcja (250ms)
+                    } else {
+                        gap = 120;      // Po 30 sek: Prawdziwa rzeźnia (120ms!)
+                    }
+
+                    if (actualTimeMs - lastBeatTime > gap) {
+                        int phaseMaxHp = Math.min(5, 2 + (int) (actualTimeMs / 30000));
                         float ratio = rms / localAvg;
                         int hp = 1;
 
-                        if (ratio > 2.4f && rms > 1500) { hp = 5; }
-                        else if (ratio > 2.2f && rms > 1300) { hp = 4; }
-                        else if (ratio > 2.0f && rms > 1100) { hp = 3; }
-                        else if (ratio > 1.8f && rms > 900) { hp = 2; }
+                        if (ratio > 2.2f && rms > 1200) {
+                            hp = 5;
+                        } else if (ratio > 2.0f && rms > 1000) {
+                            hp = 4;
+                        } else if (ratio > 1.8f && rms > 800) {
+                            hp = 3;
+                        } else if (ratio > 1.5f && rms > 600) {
+                            hp = 2;
+                        }
 
                         hp = Math.min(hp, phaseMaxHp);
 
@@ -244,12 +329,17 @@ public class GameEngine {
                 }
                 totalFramesRead += bytesRead / decodedFormat.getFrameSize();
             }
-            System.out.println("✅ Готово! Нот на всю песню: " + activeBeatmap.size());
-        } catch (Exception e) { e.printStackTrace(); }
+            System.out.println("✅ Gotowe! Liczba nut w piosence: " + activeBeatmap.size());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public void playMusic(String path) {
-        if (bgMusicClip != null) { bgMusicClip.stop(); bgMusicClip.close(); }
+        if (bgMusicClip != null) {
+            bgMusicClip.stop();
+            bgMusicClip.close();
+        }
         try (InputStream is = getResourceStream(path)) {
             if (is == null) return;
             AudioInputStream rawAis = AudioSystem.getAudioInputStream(new BufferedInputStream(is));
@@ -264,14 +354,42 @@ public class GameEngine {
             bgMusicClip.open(ais);
             applyVolume(bgMusicClip, settings.musicVolume);
             bgMusicClip.start();
-        } catch (Exception e) {}
+        } catch (Exception e) {
+        }
     }
 
-    public float getAccuracy() { return totalPossibleScore == 0 ? 1.0f : Math.max(0f, Math.min(1.0f, (float) actualEarnedScore / totalPossibleScore)); }
-    public Target createTarget(int x, int y, int hp, Color c, long hitTime) { Target t = targetPool.poll(); if (t == null) t = new Target(); t.init(x, y, hp, c, hitTime); return t; }
-    public void recycleTarget(Target t) { targetPool.offer(t); }
-    public Particle createParticle(int x, int y, Color c, int type, int shapeType) { Particle p = particlePool.poll(); if (p == null) p = new Particle(); p.init(x, y, c, type, shapeType); return p; }
-    public void recycleParticle(Particle p) { particlePool.offer(p); }
+    public float getAccuracy() {
+        if (totalPossibleScore == 0) {
+            return 1.0f;
+        }
+        return Math.max(0f, Math.min(1.0f, (float) actualEarnedScore / totalPossibleScore));
+    }
+
+    public Target createTarget(int x, int y, int hp, Color c, long hitTime) {
+        Target t = targetPool.poll();
+        if (t == null) {
+            t = new Target();
+        }
+        t.init(x, y, hp, c, hitTime);
+        return t;
+    }
+
+    public void recycleTarget(Target t) {
+        targetPool.offer(t);
+    }
+
+    public Particle createParticle(int x, int y, Color c, int type, int shapeType) {
+        Particle p = particlePool.poll();
+        if (p == null) {
+            p = new Particle();
+        }
+        p.init(x, y, c, type, shapeType);
+        return p;
+    }
+
+    public void recycleParticle(Particle p) {
+        particlePool.offer(p);
+    }
 
     public void resetGame() {
         restarting = true;
@@ -288,16 +406,68 @@ public class GameEngine {
         totalHits = 0;
         totalFails = 0;
 
-        for (Clip c : activeSfx) { if (c != null && c.isOpen()) { c.stop(); c.close(); } }
+        for (Clip c : activeSfx) {
+            if (c != null && c.isOpen()) {
+                c.stop();
+                c.close();
+            }
+        }
         activeSfx.clear();
     }
 
-    public Color hpColor(int hp) { return hp == 5 ? C5 : hp == 4 ? C4 : hp == 3 ? C3 : hp == 2 ? C2 : C1; }
-    public void updateShake() { if (shakeIntensity > 0) { shakeX = random.nextInt(shakeIntensity * 2 + 1) - shakeIntensity; shakeY = random.nextInt(shakeIntensity * 2 + 1) - shakeIntensity; shakeIntensity--; } else { shakeX = 0; shakeY = 0; } }
-    public void createExplosion(int x, int y, Color c, int hp) { int count = (hp == 0) ? 8 : 15 + hp * 5; for (int i = 0; i < count; i++) particles.add(createParticle(x, y, c, 0, 0)); if (hp > 0) particles.add(createParticle(x, y, c, 1, hp)); }
-    public void applyVolume(Clip clip, float volume) { if (clip == null) return; try { FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN); float dB = (volume <= 0.0001f) ? gain.getMinimum() : (float)(Math.log10(volume) * 20.0); gain.setValue(Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), dB))); } catch (Exception ignored) {} }
-    public void updateMusicFade() { float target = isPaused ? 0.28f : 1.0f; if (musicFadeMult < target) musicFadeMult = Math.min(musicFadeMult + 0.03f, target); else if (musicFadeMult > target) musicFadeMult = Math.max(musicFadeMult - 0.03f, target); applyVolume(bgMusicClip, settings.musicVolume * musicFadeMult); }
-    public void triggerResume() { isPaused = false; resumeCountdown = 186; }
+    public Color hpColor(int hp) {
+        if (hp == 5) return C5;
+        if (hp == 4) return C4;
+        if (hp == 3) return C3;
+        if (hp == 2) return C2;
+        return C1;
+    }
+
+    public void updateShake() {
+        if (shakeIntensity > 0) {
+            shakeX = random.nextInt(shakeIntensity * 2 + 1) - shakeIntensity;
+            shakeY = random.nextInt(shakeIntensity * 2 + 1) - shakeIntensity;
+            shakeIntensity--;
+        } else {
+            shakeX = 0;
+            shakeY = 0;
+        }
+    }
+
+    public void createExplosion(int x, int y, Color c, int hp) {
+        int count = (hp == 0) ? 8 : 15 + hp * 5;
+        for (int i = 0; i < count; i++) {
+            particles.add(createParticle(x, y, c, 0, 0));
+        }
+        if (hp > 0) {
+            particles.add(createParticle(x, y, c, 1, hp));
+        }
+    }
+
+    public void applyVolume(Clip clip, float volume) {
+        if (clip == null) return;
+        try {
+            FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+            float dB = (volume <= 0.0001f) ? gain.getMinimum() : (float) (Math.log10(volume) * 20.0);
+            gain.setValue(Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), dB)));
+        } catch (Exception ignored) {
+        }
+    }
+
+    public void updateMusicFade() {
+        float target = isPaused ? 0.28f : 1.0f;
+        if (musicFadeMult < target) {
+            musicFadeMult = Math.min(musicFadeMult + 0.03f, target);
+        } else if (musicFadeMult > target) {
+            musicFadeMult = Math.max(musicFadeMult - 0.03f, target);
+        }
+        applyVolume(bgMusicClip, settings.musicVolume * musicFadeMult);
+    }
+
+    public void triggerResume() {
+        isPaused = false;
+        resumeCountdown = 186;
+    }
 
     public void playSound(String name) {
         new Thread(() -> {
@@ -306,7 +476,9 @@ public class GameEngine {
                 if (!soundFile.exists()) {
                     soundFile = new File("E:\\OSU_Question\\resources\\sounds\\" + name);
                 }
-                if (!soundFile.exists()) return;
+                if (!soundFile.exists()) {
+                    return;
+                }
 
                 AudioInputStream ais = AudioSystem.getAudioInputStream(soundFile);
                 Clip clip = AudioSystem.getClip();
@@ -319,7 +491,8 @@ public class GameEngine {
 
                 clip.close();
                 activeSfx.remove(clip);
-            } catch (Exception e) {}
+            } catch (Exception e) {
+            }
         }).start();
     }
 }

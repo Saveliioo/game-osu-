@@ -7,13 +7,9 @@ import javax.swing.SwingUtilities;
 
 public class GameEngine {
 
-    // ── Grid constants ────────────────────────────────────────────────────────
-
     public static final int SIZE      = 7;
     public static final int TILE_SIZE = 75;
     public static final int GRID_PX   = SIZE * TILE_SIZE;
-
-    // ── Target colours (indexed by hp 1–5) ───────────────────────────────────
 
     public static final Color C1 = new Color(  0, 255, 220);
     public static final Color C2 = new Color(255, 200,  50);
@@ -21,20 +17,14 @@ public class GameEngine {
     public static final Color C4 = new Color(255, 140,   0);
     public static final Color C5 = new Color(255,  55,  90);
 
-    // ── Scoring ───────────────────────────────────────────────────────────────
-
     public int   score              = 50;
     public int   totalPossibleScore = 0;
     public int   actualEarnedScore  = 0;
-
-    // ── Game-over state ───────────────────────────────────────────────────────
 
     public boolean gameOver      = false;
     public int     gameOverTicks = 0;
     public boolean showMeme      = false;
     public int     memeTicks     = 0;
-
-    // ── Wave / flow ───────────────────────────────────────────────────────────
 
     public int    waveNumber      = 0;
     public boolean inSongMenu     = true;
@@ -44,20 +34,15 @@ public class GameEngine {
     public boolean settingsOpen   = false;
     public int     resumeCountdown = 0;
     public String  pendingAudioPath = null;
-
-    // ── Statistics ────────────────────────────────────────────────────────────
+    public boolean isLoopSong     = false;
 
     public int   totalHits  = 0;
     public int   totalFails = 0;
     public int[] colorHits  = new int[5];
 
-    // ── Screen shake ──────────────────────────────────────────────────────────
-
     public int shakeIntensity = 0;
     public int shakeX         = 0;
     public int shakeY         = 0;
-
-    // ── Collections ───────────────────────────────────────────────────────────
 
     public final List<Song>          songList      = new ArrayList<>();
     public final List<Note>          activeBeatmap = new ArrayList<>();
@@ -65,22 +50,14 @@ public class GameEngine {
     public final ArrayList<Particle> particles     = new ArrayList<>();
     public       List<int[][]>       patterns;
 
-    // ── Sub-systems ───────────────────────────────────────────────────────────
-
     public final Settings        settings;
     public final AudioManager    audio;
     public final BeatmapAnalyzer analyzer;
-
-    // ── Shared random + object pools ─────────────────────────────────────────
 
     public final Random random = new Random();
 
     private final ArrayDeque<Target>   targetPool   = new ArrayDeque<>();
     private final ArrayDeque<Particle> particlePool = new ArrayDeque<>();
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // Construction
-    // ══════════════════════════════════════════════════════════════════════════
 
     public GameEngine() {
         settings = new Settings();
@@ -93,16 +70,13 @@ public class GameEngine {
 
         loadSongList();
     }
+
     private void loadSongList() {
         songList.add(new Song("Recall",     AppConfig.music("gabriawll - Recall [NCS Release].wav")));
         songList.add(new Song("Old School", AppConfig.music("More Plastic - Old School [NCS Release].wav")));
         songList.add(new Song("LOOP",       AppConfig.music("SXYGX, ACIGODE, LANCELOT - LOOP [NCS Release].wav")));
         songList.add(new Song("Faster",     AppConfig.music("Zambolino - Faster.wav")));
     }
-
-    // ══════════════════════════════════════════════════════════════════════════
-    // Main update loop  (called every ~16 ms from the Swing Timer on the EDT)
-    // ══════════════════════════════════════════════════════════════════════════
 
     public void update() {
         audio.updateMusicFade(isPaused);
@@ -142,13 +116,14 @@ public class GameEngine {
         checkGameOver();
     }
 
-    // ── Update helpers ────────────────────────────────────────────────────────
-
     private void tickBeatmap() {
         long ms = audio.getPositionMs();
         if (audio.isMusicActive()) {
             audio.songStarted = true;
             while (!activeBeatmap.isEmpty() && activeBeatmap.get(0).timeMs - 1200 <= ms) {
+                if (targets.size() >= 7) {
+                    break;
+                }
                 Note n = activeBeatmap.remove(0);
                 targets.add(createTarget(n.x, n.y, n.hp, hpColor(n.hp), n.timeMs));
             }
@@ -162,7 +137,7 @@ public class GameEngine {
         targets.removeIf(t -> {
             t.update(ms);
             if (t.shouldRemove && !t.isFailing && t.brightness <= 0) {
-                score -= 10;  // missed note penalty
+                score -= 10;
             }
             if (t.shouldRemove) recycleTarget(t);
             return t.shouldRemove;
@@ -191,8 +166,6 @@ public class GameEngine {
         if (score < 0 && !gameOver) triggerGameOver(true);
     }
 
-    // ── Game-over flow ────────────────────────────────────────────────────────
-
     private void triggerGameOver(boolean isFailure) {
         gameOver      = true;
         gameOverTicks = 0;
@@ -218,10 +191,6 @@ public class GameEngine {
         }
     }
 
-    /**
-     * Schedules the flashbang sound and meme image on a daemon thread.
-     * Mutations to game state (showMeme) are posted back to the EDT.
-     */
     private void scheduleGameOverMeme() {
         Thread t = new Thread(() -> {
             audio.playSound(AppConfig.sound("flashbang-full-out.wav"));
@@ -235,16 +204,8 @@ public class GameEngine {
         t.start();
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // Public API called by InputHandler / Renderer
-    // ══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Starts async beat-map analysis for the given audio file.
-     * The resulting {@link Note} list is merged into {@link #activeBeatmap}
-     * on the EDT so game-loop access remains single-threaded.
-     */
     public void analyzeAudioAndGenerateMap(String audioPath) {
+        isLoopSong = audioPath.toLowerCase().contains("loop");
         activeBeatmap.clear();
         totalPossibleScore = 0;
         analyzer.analyzeAsync(audioPath, notes -> SwingUtilities.invokeLater(() -> {
@@ -253,13 +214,10 @@ public class GameEngine {
         }));
     }
 
-    /** Delegates to {@link AudioManager#playMusic(String)}. */
     public void playMusic(String path) { audio.playMusic(path); }
 
-    /** Delegates to {@link AudioManager#playSound(String)}. */
     public void playSound(String name) { audio.playSound(name); }
 
-    /** Resets all game state back to its initial values. */
     public void resetGame() {
         restarting        = true;
         restartTimer      = 180;
@@ -278,33 +236,27 @@ public class GameEngine {
         memeTicks         = 0;
         totalHits         = 0;
         totalFails        = 0;
-        colorHits         = new int[5];   // bug-fix: was missing in original
+        colorHits         = new int[5];
 
         audio.stopAllSfx();
     }
 
-    /** Exits pause mode after a brief countdown (resume animation). */
     public void triggerResume() {
         isPaused        = false;
         resumeCountdown = 186;
     }
 
-    /** Accuracy as a value in [0, 1] based on earned vs. possible score. */
     public float getAccuracy() {
         if (totalPossibleScore == 0) return 1.0f;
         return Math.max(0f, Math.min(1f, (float) actualEarnedScore / totalPossibleScore));
     }
 
-    // ── Visual helpers ────────────────────────────────────────────────────────
-
-    /** Spawns a burst of particles at the given screen position. */
     public void createExplosion(int x, int y, Color c, int hp) {
         int count = (hp == 0) ? 8 : 15 + hp * 5;
         for (int i = 0; i < count; i++) particles.add(createParticle(x, y, c, 0, 0));
         if (hp > 0) particles.add(createParticle(x, y, c, 1, hp));
     }
 
-    /** Maps an hp value (1–5) to its corresponding display colour. */
     public Color hpColor(int hp) {
         return switch (hp) {
             case 5  -> C5;
@@ -314,8 +266,6 @@ public class GameEngine {
             default -> C1;
         };
     }
-
-    // ── Screen shake ──────────────────────────────────────────────────────────
 
     public void updateShake() {
         if (shakeIntensity > 0) {
@@ -327,14 +277,10 @@ public class GameEngine {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════════
-    // Object pools
-    // ══════════════════════════════════════════════════════════════════════════
-
     public Target createTarget(int x, int y, int hp, Color c, long hitTime) {
         Target t = targetPool.poll();
         if (t == null) t = new Target();
-        t.init(x, y, hp, c, hitTime);
+        t.init(x, y, hp, c, hitTime, isLoopSong);
         return t;
     }
 

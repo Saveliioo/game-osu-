@@ -7,11 +7,12 @@ public class Target {
     boolean isReady, isFailing, shouldRemove;
     Color baseColor;
     long hitTime;
+    boolean isLoop;
 
     public Target() {
     }
 
-    public void init(int x, int y, int hp, Color c, long hitTime) {
+    public void init(int x, int y, int hp, Color c, long hitTime, boolean isLoop) {
         this.x = x;
         this.y = y;
         this.hp = hp;
@@ -24,24 +25,27 @@ public class Target {
         this.isReady = false;
         this.isFailing = false;
         this.shouldRemove = false;
+        this.isLoop = isLoop;
     }
 
     public void update(long currentMs) {
         if (isFailing) {
-            failAlpha -= 0.1f;
+            failAlpha -= (isLoop ? 0.05f : 0.1f);
             if (failAlpha <= 0) {
                 shouldRemove = true;
             }
         } else {
             long diff = hitTime - currentMs;
-            isReady = Math.abs(diff) <= 250;
-
             if (diff > 0) {
                 growth = Math.max(0, 1.0 - (diff / 1200.0));
+                isReady = false;
+                brightness = 1.0f;
             } else {
                 growth = 1.0;
+                isReady = true;
                 long overTime = currentMs - hitTime;
-                brightness = 1.0f - (overTime / 300.0f);
+                long maxLifeTime = (hp + 1) * (isLoop ? 2000L : 1000L);
+                brightness = 1.0f - ((float) overTime / maxLifeTime);
                 if (brightness <= 0) {
                     shouldRemove = true;
                 }
@@ -63,14 +67,26 @@ public class Target {
         int px = ox + x * tileSize + (tileSize - s) / 2;
         int py = oy + y * tileSize + (tileSize - s) / 2;
 
-        float alphaValue = isReady || growth >= 1.0 ? brightness : (float) growth;
+        float alphaValue = isReady ? brightness : (float) growth;
         float alpha = Math.max(0f, Math.min(1.0f, isFailing ? failAlpha : alphaValue));
 
         Color c = isFailing ? Color.RED : baseColor;
-        g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (alpha * 255)));
-        g2.fillRect(px, py, s, s);
 
-        if (!isFailing && hp > 1) {
+        if (isReady) {
+            g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (alpha * 255)));
+            g2.fillRect(px, py, s, s);
+            g2.setColor(new Color(255, 255, 255, (int) (alpha * 255)));
+            g2.setStroke(new BasicStroke(3f));
+            g2.drawRect(px, py, s, s);
+        } else {
+            g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (alpha * 255)));
+            g2.setStroke(new BasicStroke(1.5f));
+            g2.drawRect(px, py, s, s);
+            g2.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) (alpha * 80)));
+            g2.fillRect(px, py, s, s);
+        }
+
+        if (!isFailing && hp > 1 && !isLoop) {
             g2.setFont(new Font("Consolas", Font.BOLD, s / 2));
             g2.setColor(new Color(255, 255, 255, (int) (alpha * 255)));
             String hText = String.valueOf(hp);

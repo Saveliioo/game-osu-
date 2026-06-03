@@ -4,19 +4,18 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
+
 public class InputHandler {
-
     private final GameEngine engine;
-    private final Renderer   renderer;
-    private final Main       panel;
-
+    private final Renderer renderer;
+    private final Main panel;
     public int mouseX = 0;
     public int mouseY = 0;
 
     public InputHandler(GameEngine engine, Renderer renderer, Main panel) {
-        this.engine   = engine;
+        this.engine = engine;
         this.renderer = renderer;
-        this.panel    = panel;
+        this.panel = panel;
     }
 
     public void attach() {
@@ -46,22 +45,57 @@ public class InputHandler {
                 Point p = e.getPoint();
 
                 if (engine.inSongMenu) {
-                    handleSongMenuClick(p);
+                    if (renderer.menuExitBounds != null && renderer.menuExitBounds.contains(p)) {
+                        System.exit(0);
+                    }
+                    if (renderer.songBounds != null) {
+                        for (int i = 0; i < renderer.songBounds.length; i++) {
+                            if (renderer.songBounds[i] != null && renderer.songBounds[i].contains(p)) {
+                                engine.inSongMenu = false;
+                                String path = engine.songList.get(i).audioPath;
+                                engine.analyzeAudioAndGenerateMap(path);
+                                engine.playMusic(path);
+                                panel.repaint();
+                                break;
+                            }
+                        }
+                    }
                     return;
                 }
 
                 if (engine.gameOver) {
-                    handleGameOverClick(p);
+                    if (renderer.gameOverMenuBounds.contains(p)) {
+                        engine.inSongMenu = true;
+                        engine.resetGame();
+                        panel.repaint();
+                    } else if (renderer.exitBounds.contains(p)) {
+                        System.exit(0);
+                    }
                     return;
                 }
 
                 if (engine.isPaused) {
-                    handlePauseMenuClick(p);
+                    if (engine.settingsOpen) {
+                        if (engine.settings.handleClick(p)) {
+                            engine.settingsOpen = false;
+                        }
+                        panel.repaint();
+                        return;
+                    }
+                    if (renderer.resumeBounds.contains(p)) {
+                        engine.triggerResume();
+                    } else if (renderer.mainMenuBounds.contains(p)) {
+                        engine.inSongMenu = true;
+                        engine.resetGame();
+                    } else if (renderer.exitBounds.contains(p)) {
+                        System.exit(0);
+                    }
+                    panel.repaint();
                     return;
                 }
 
-                int dmg = (e.getButton() == MouseEvent.BUTTON3) ? 2 : 1;
-                handleGameClick(e.getX(), e.getY(), dmg);
+                int dmg = e.getButton() == MouseEvent.BUTTON3 ? 2 : 1;
+                handleClick(e.getX(), e.getY(), dmg);
                 panel.repaint();
             }
 
@@ -77,140 +111,67 @@ public class InputHandler {
         panel.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                handleKeyPress(e);
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE && !engine.inSongMenu && !engine.gameOver && !engine.restarting && engine.resumeCountdown <= 0) {
+                    if (engine.settingsOpen) {
+                        engine.settingsOpen = false;
+                    } else {
+                        engine.isPaused = !engine.isPaused;
+                    }
+                    panel.repaint();
+                }
+                if (!engine.inSongMenu && !engine.gameOver && !engine.isPaused && !engine.restarting && engine.resumeCountdown <= 0) {
+                    int dmg = 0;
+                    if (e.getKeyCode() == KeyEvent.VK_Z) dmg = 1;
+                    if (e.getKeyCode() == KeyEvent.VK_X) dmg = 2;
+                    if (dmg > 0) {
+                        handleClick(mouseX, mouseY, dmg);
+                        panel.repaint();
+                    }
+                }
             }
         });
     }
 
-    // ── Click routers ─────────────────────────────────────────────────────────
-
-    private void handleSongMenuClick(Point p) {
-        if (renderer.menuExitBounds != null && renderer.menuExitBounds.contains(p)) {
-            System.exit(0);
-        }
-        if (renderer.songBounds != null) {
-            for (int i = 0; i < renderer.songBounds.length; i++) {
-                if (renderer.songBounds[i] != null && renderer.songBounds[i].contains(p)) {
-                    engine.inSongMenu = false;
-                    String path = engine.songList.get(i).audioPath;
-                    engine.analyzeAudioAndGenerateMap(path);
-                    engine.playMusic(path);
-                    panel.repaint();
-                    break;
-                }
-            }
-        }
-    }
-
-    private void handleGameOverClick(Point p) {
-        if (renderer.gameOverMenuBounds.contains(p)) {
-            engine.inSongMenu = true;
-            engine.resetGame();
-            panel.repaint();
-        } else if (renderer.exitBounds.contains(p)) {
-            System.exit(0);
-        }
-    }
-
-    private void handlePauseMenuClick(Point p) {
-        if (engine.settingsOpen) {
-            if (engine.settings.handleClick(p)) {
-                engine.settingsOpen = false;
-            }
-            panel.repaint();
-            return;
-        }
-
-        if (renderer.resumeBounds.contains(p)) {
-            engine.triggerResume();
-        } else if (renderer.settingsBounds.contains(p)) {
-            engine.settingsOpen = true;
-        } else if (renderer.mainMenuBounds.contains(p)) {
-            engine.inSongMenu = true;
-            engine.resetGame();
-        } else if (renderer.exitBounds.contains(p)) {
-            System.exit(0);
-        }
-        panel.repaint();
-    }
-
-    private void handleKeyPress(KeyEvent e) {
-        int key = e.getKeyCode();
-
-        if (key == KeyEvent.VK_ESCAPE
-                && !engine.inSongMenu
-                && !engine.gameOver
-                && !engine.restarting
-                && engine.resumeCountdown <= 0) {
-            if (engine.settingsOpen) {
-                engine.settingsOpen = false;
-            } else {
-                engine.isPaused = !engine.isPaused;
-            }
-            panel.repaint();
-        }
-
-        if (!engine.inSongMenu
-                && !engine.gameOver
-                && !engine.isPaused
-                && !engine.restarting
-                && engine.resumeCountdown <= 0) {
-            int dmg = 0;
-            if (key == KeyEvent.VK_Z) dmg = 1;
-            if (key == KeyEvent.VK_X) dmg = 2;
-            if (dmg > 0) {
-                handleGameClick(mouseX, mouseY, dmg);
-                panel.repaint();
-            }
-        }
-    }
-
-    // ── In-game target hit logic ──────────────────────────────────────────────
-
-    private void handleGameClick(int mx, int my, int dmg) {
-        int[] o  = renderer.getGridOrigin(engine, panel);
-        int   tx = (mx - o[0]) / GameEngine.TILE_SIZE;
-        int   ty = (my - o[1]) / GameEngine.TILE_SIZE;
+    private void handleClick(int mx, int my, int dmg) {
+        int[] o = renderer.getGridOrigin(engine, panel);
+        int tx = (mx - o[0]) / GameEngine.TILE_SIZE;
+        int ty = (my - o[1]) / GameEngine.TILE_SIZE;
         boolean hit = false;
 
         for (Target t : engine.targets) {
-            if (t.x != tx || t.y != ty || t.isFailing) continue;
-
-            if (!t.isReady) {
-                // Hit too early
-                engine.score -= t.maxHp * 10;
-                engine.totalFails++;
-                t.triggerFail();
-                engine.shakeIntensity = 10;
+            if (t.x == tx && t.y == ty && !t.isFailing) {
+                if (t.isReady) {
+                    if (dmg > t.hp) {
+                        engine.score -= t.maxHp * 10;
+                        engine.totalFails++;
+                        t.triggerFail();
+                        engine.shakeIntensity = 10;
+                        hit = true;
+                        break;
+                    }
+                    engine.playSound("high_hit.wav");
+                    t.hp -= dmg;
+                    if (t.hp <= 0) {
+                        engine.score += t.maxHp * 2;
+                        engine.actualEarnedScore += t.maxHp * 2;
+                        engine.totalHits++;
+                        engine.colorHits[Math.min(t.maxHp - 1, 4)]++;
+                        engine.createExplosion(mx, my, t.baseColor, t.maxHp);
+                        t.shouldRemove = true;
+                    } else {
+                        engine.shakeIntensity = (dmg == 2) ? 16 : 12;
+                        engine.createExplosion(mx, my, java.awt.Color.WHITE, 0);
+                    }
+                } else {
+                    engine.score -= t.maxHp * 10;
+                    engine.totalFails++;
+                    t.triggerFail();
+                    engine.shakeIntensity = 10;
+                }
                 hit = true;
                 break;
             }
-
-            if (dmg > t.hp) {
-                engine.score -= t.maxHp * 10;
-                engine.totalFails++;
-                t.triggerFail();
-                engine.shakeIntensity = 10;
-            } else {
-                engine.playSound("high_hit.wav");
-                t.hp -= dmg;
-                if (t.hp <= 0) {
-                    engine.score           += t.maxHp * 2;
-                    engine.actualEarnedScore += t.maxHp * 2;
-                    engine.totalHits++;
-                    engine.colorHits[Math.min(t.maxHp - 1, 4)]++;
-                    engine.createExplosion(mx, my, t.baseColor, t.maxHp);
-                    t.shouldRemove = true;
-                } else {
-                    engine.shakeIntensity = (dmg == 2) ? 16 : 12;
-                    engine.createExplosion(mx, my, java.awt.Color.WHITE, 0);
-                }
-            }
-            hit = true;
-            break;
         }
-
-        // Miss — clicked empty grid cell
         if (!hit && tx >= 0 && tx < GameEngine.SIZE && ty >= 0 && ty < GameEngine.SIZE) {
             engine.score -= 5;
             engine.shakeIntensity = 5;

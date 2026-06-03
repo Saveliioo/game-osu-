@@ -64,6 +64,10 @@ public class GameEngine {
         audio    = new AudioManager(settings);
         analyzer = new BeatmapAnalyzer(audio, random);
 
+        // przedwczesne załadowanie SFX
+        audio.preloadSound("high_hit.wav");
+        audio.preloadSound("low_hit.wav");
+
         try {
             patterns = PatternLoader.load("patterns.txt");
         } catch (Exception ignored) {}

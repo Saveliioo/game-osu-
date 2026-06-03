@@ -1,32 +1,24 @@
 import javax.sound.sampled.*;
 import java.io.*;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Handles all audio: background music playback, sound-effect playback,
- * volume control, and the pause-fade effect.
- *
- * <p>Sound effects are played on short-lived daemon threads.
- * {@link CopyOnWriteArrayList} is used for {@code activeSfx} so that the
- * game-loop thread can iterate the list safely while SFX threads add/remove
- * entries concurrently — eliminating the original
- * {@link java.util.ConcurrentModificationException} risk.
- */
 public class AudioManager {
 
     // ── State ─────────────────────────────────────────────────────────────────
 
     private Clip bgMusicClip;
 
-    /** Set to {@code true} once the current song has started playing. */
     public boolean songStarted = false;
 
-    /** Current fade multiplier applied on top of {@code settings.musicVolume}. */
     public float musicFadeMult = 1.0f;
 
-    /** All currently-playing SFX clips (thread-safe for concurrent add/remove). */
     private final List<Clip> activeSfx = new CopyOnWriteArrayList<>();
+
+    private final Map<String, byte[]>       sfxDataCache   = new HashMap<>();
+    private final Map<String, AudioFormat>  sfxFormatCache = new HashMap<>();
 
     private final Settings settings;
 
@@ -38,27 +30,20 @@ public class AudioManager {
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
-    /** Current playback position of the background music in milliseconds. */
     public long getPositionMs() {
         return bgMusicClip != null ? bgMusicClip.getMicrosecondPosition() / 1000 : 0;
     }
 
-    /** {@code true} when background music is currently playing (not stopped/paused). */
     public boolean isMusicActive() {
         return bgMusicClip != null && bgMusicClip.isActive();
     }
 
-    /** Direct access to the underlying Clip, needed by the beatmap tick. */
     public Clip getBgMusicClip() {
         return bgMusicClip;
     }
 
     // ── Music ─────────────────────────────────────────────────────────────────
 
-    /**
-     * Stops any currently-playing music, loads the file at {@code path},
-     * and starts playback immediately.
-     */
     public void playMusic(String path) {
         stopMusic();
         try (InputStream is = openStream(path)) {
@@ -87,19 +72,47 @@ public class AudioManager {
 
     // ── SFX ──────────────────────────────────────────────────────────────────
 
+    public void preloadSound(String name) {
+        if (sfxDataCache.containsKey(name)) return;
+        try {
+            File file = resolveSound(name);
+            if (file == null) {
+                System.err.println("[AudioManager] preloadSound – file not found: " + name);
+                return;
+            }
+            AudioInputStream decoded = toDecodedStream(
+                    AudioSystem.getAudioInputStream(file));
+            byte[] data = decoded.readAllBytes();
+            sfxDataCache  .put(name, data);
+            sfxFormatCache.put(name, decoded.getFormat());
+            System.out.println("[AudioManager] preloaded: " + name + " (" + data.length + " bytes)");
+        } catch (Exception e) {
+            System.err.println("[AudioManager] preloadSound failed (" + name + "): " + e.getMessage());
+        }
+    }
+
     public void playSound(String name) {
+        byte[]      cachedData   = sfxDataCache  .get(name);
+        AudioFormat cachedFormat = sfxFormatCache.get(name);
+
         Thread t = new Thread(() -> {
             try {
-                File file = resolveSound(name);
-                if (file == null) {
-                    System.err.println("[AudioManager] Sound not found: " + name);
-                    return;
-                }
-                AudioInputStream ais  = AudioSystem.getAudioInputStream(file);
-                Clip              clip = AudioSystem.getClip();
-                clip.open(ais);
-                applyVolume(clip, settings.hitVolume);
+                Clip clip = AudioSystem.getClip();
 
+                if (cachedData != null) {
+                    // Fast path – data already in RAM, no disk I/O
+                    clip.open(cachedFormat, cachedData, 0, cachedData.length);
+                } else {
+                    // Fallback – load from disk (noticeable latency)
+                    File file = resolveSound(name);
+                    if (file == null) {
+                        System.err.println("[AudioManager] Sound not found: " + name);
+                        return;
+                    }
+                    clip.open(toDecodedStream(AudioSystem.getAudioInputStream(file)));
+                }
+
+                applyVolume(clip, settings.hitVolume);
                 activeSfx.add(clip);
                 clip.start();
                 Thread.sleep(clip.getMicrosecondLength() / 1000);

@@ -21,8 +21,6 @@ public class GameEngine {
 
     public boolean showMeme = false;
     public int memeTicks = 0;
-
-    public int waveNumber = 0;
     public int shakeIntensity = 0;
     public int shakeX = 0;
     public int shakeY = 0;

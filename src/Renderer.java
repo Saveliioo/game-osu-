@@ -21,7 +21,11 @@ public class Renderer {
 
     public Renderer() {
         try {
-            memeImage = ImageIO.read(new File(AppConfig.image("meme.png")));
+            File memeFile = new File("C:\\Users\\nesto\\Desktop\\OSU_Question\\Gemini_Generated_Image_.png");
+            if (!memeFile.exists()) {
+                memeFile = new File(AppConfig.image("meme.png"));
+            }
+            memeImage = ImageIO.read(memeFile);
         } catch (IOException e) {
             System.err.println("[Renderer] Could not load meme image: " + e.getMessage());
         }

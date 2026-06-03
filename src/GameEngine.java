@@ -64,7 +64,6 @@ public class GameEngine {
         audio    = new AudioManager(settings);
         analyzer = new BeatmapAnalyzer(audio, random);
 
-        // przedwczesne załadowanie SFX
         audio.preloadSound("high_hit.wav");
         audio.preloadSound("low_hit.wav");
 
@@ -129,7 +128,16 @@ public class GameEngine {
                     break;
                 }
                 Note n = activeBeatmap.remove(0);
-                targets.add(createTarget(n.x, n.y, n.hp, hpColor(n.hp), n.timeMs));
+                boolean occupied = false;
+                for (Target existing : targets) {
+                    if (existing.x == n.x && existing.y == n.y) {
+                        occupied = true;
+                        break;
+                    }
+                }
+                if (!occupied) {
+                    targets.add(createTarget(n.x, n.y, n.hp, hpColor(n.hp), n.timeMs));
+                }
             }
         } else if (audio.songStarted && activeBeatmap.isEmpty() && targets.isEmpty()) {
             triggerGameOver(false);

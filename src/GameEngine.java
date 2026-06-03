@@ -19,7 +19,6 @@ public class GameEngine {
     public boolean gameOver = false;
     public int gameOverTicks = 0;
 
-    // --- Zarządzanie wyświetlaniem mema ---
     public boolean showMeme = false;
     public int memeTicks = 0;
 
@@ -48,7 +47,6 @@ public class GameEngine {
     public final List<Clip> activeSfx = new ArrayList<>();
 
     public final Settings settings = new Settings();
-    public DragEvent dragEvent = null;
     public final ArrayList<Target> targets = new ArrayList<>();
     public final ArrayList<Particle> particles = new ArrayList<>();
     public List<int[][]> patterns;
@@ -91,25 +89,23 @@ public class GameEngine {
         } catch (Exception ignored) {
         }
 
-        songList.add(new Song("Recall", "E:\\OSU_Question\\resources\\background_music\\gabriawll - Recall [NCS Release].wav"));
-        songList.add(new Song("Old School", "E:\\OSU_Question\\resources\\background_music\\More Plastic - Old School [NCS Release].wav"));
-        songList.add(new Song("LOOP", "E:\\OSU_Question\\resources\\background_music\\SXYGX, ACIGODE, LANCELOT - LOOP [NCS Release].wav"));
-        songList.add(new Song("Faster", "E:\\OSU_Question\\resources\\background_music\\Zambolino - Faster.wav"));
+        // ИСПОЛЬЗУЕМ ОТНОСИТЕЛЬНЫЕ ПУТИ
+        // Папка "resources" должна лежать в корне твоего проекта
+        songList.add(new Song("Recall", "resources/background_music/gabriawll - Recall [NCS Release].wav"));
+        songList.add(new Song("Old School", "resources/background_music/More Plastic - Old School [NCS Release].wav"));
+        songList.add(new Song("LOOP", "resources/background_music/SXYGX, ACIGODE, LANCELOT - LOOP [NCS Release].wav"));
+        songList.add(new Song("Faster", "resources/background_music/Zambolino - Faster.wav"));
     }
 
     private InputStream getResourceStream(String path) {
         try {
+            // 1. Проверяем как обычный файл в папке проекта
             File file = new File(path);
             if (file.exists()) {
                 return new java.io.FileInputStream(file);
             }
 
-            String cleanPath = path.replace("background_music/", "");
-            File bgFile = new File("E:\\OSU_Question\\resources\\background_music\\" + cleanPath);
-            if (bgFile.exists()) {
-                return new java.io.FileInputStream(bgFile);
-            }
-
+            // 2. Проверяем внутри сборки (если скомпилировано в JAR)
             String p = path.startsWith("/") ? path.substring(1) : path;
             InputStream is = getClass().getClassLoader().getResourceAsStream(p);
             if (is == null) {
@@ -142,7 +138,7 @@ public class GameEngine {
         if (gameOver) {
             gameOverTicks++;
             if (showMeme) {
-                memeTicks++; // Liczymy czas do płynnego pojawienia się
+                memeTicks++;
             }
             particles.removeIf(p -> {
                 p.update();
@@ -211,11 +207,10 @@ public class GameEngine {
             return rem;
         });
 
-        // LOGIKA PRZEGRANEJ (FLASHBANG -> ZSRR + OBRAZEK)
         if (score < 0 && !gameOver) {
             gameOver = true;
             gameOverTicks = 0;
-            showMeme = false; // Ukrywamy obrazek na początku
+            showMeme = false;
             memeTicks = 0;
 
             if (bgMusicClip != null) {
@@ -232,16 +227,12 @@ public class GameEngine {
             }
 
             new Thread(() -> {
-
                 playSound("flashbang-full-out.wav");
-
                 try {
-
                     Thread.sleep(1500);
                 } catch (InterruptedException e) {
                 }
 
-                // 2. Potem, jeśli nie wyszliśmy do menu, włączamy hymn ZSRR i pokazujemy mema
                 if (gameOver && !restarting) {
                     showMeme = true;
                     playSound("sssr-mem.wav");
@@ -253,7 +244,6 @@ public class GameEngine {
     public void analyzeAudioAndGenerateMap(String audioPath) {
         activeBeatmap.clear();
         totalPossibleScore = 0;
-        System.out.println("--- Analiza rytmu (Zwiększona ilość kwadratów!): " + audioPath);
 
         try (InputStream is = getResourceStream(audioPath)) {
             if (is == null) return;
@@ -291,18 +281,16 @@ public class GameEngine {
                     localAvg /= count;
                 }
 
-                // --- BARDZIEJ AGRESYWNE ŁAPANIE BITÓW ---
                 if (rms > 1.2f * localAvg && rms > 200) {
                     long actualTimeMs = (long) ((totalFramesRead / decodedFormat.getSampleRate()) * 1000);
 
-                    // --- BARDZO SZYBKI SPAWN KWADRATÓW ---
                     int gap = 200;
                     if (actualTimeMs < 10000) {
-                        gap = 600;      // 0-10 sek: Tylko lekka rozgrzewka (600ms)
+                        gap = 600;
                     } else if (actualTimeMs < 30000) {
-                        gap = 250;      // 10-30 sek: Zaczyna się akcja (250ms)
+                        gap = 250;
                     } else {
-                        gap = 120;      // Po 30 sek: Prawdziwa rzeźnia (120ms!)
+                        gap = 120;
                     }
 
                     if (actualTimeMs - lastBeatTime > gap) {
@@ -329,8 +317,8 @@ public class GameEngine {
                 }
                 totalFramesRead += bytesRead / decodedFormat.getFrameSize();
             }
-            System.out.println("✅ Gotowe! Liczba nut w piosence: " + activeBeatmap.size());
         } catch (Exception e) {
+            System.out.println("ОШИБКА ПРИ ГЕНЕРАЦИИ КАРТЫ: " + audioPath);
             e.printStackTrace();
         }
     }
@@ -340,8 +328,12 @@ public class GameEngine {
             bgMusicClip.stop();
             bgMusicClip.close();
         }
+
         try (InputStream is = getResourceStream(path)) {
-            if (is == null) return;
+            if (is == null) {
+                System.out.println("КРИТИЧЕСКАЯ ОШИБКА: Файл музыки не найден -> " + path);
+                return;
+            }
             AudioInputStream rawAis = AudioSystem.getAudioInputStream(new BufferedInputStream(is));
             AudioFormat baseFormat = rawAis.getFormat();
             AudioFormat decodedFormat = new AudioFormat(
@@ -354,7 +346,10 @@ public class GameEngine {
             bgMusicClip.open(ais);
             applyVolume(bgMusicClip, settings.musicVolume);
             bgMusicClip.start();
+            System.out.println("Успешно запущен трек: " + path);
         } catch (Exception e) {
+            System.out.println("ОШИБКА ПРИ ЗАПУСКЕ ТРЕКА: " + path);
+            e.printStackTrace();
         }
     }
 
@@ -472,18 +467,22 @@ public class GameEngine {
     public void playSound(String name) {
         new Thread(() -> {
             try {
-                File soundFile = new File(name);
+                // Пытаемся найти звук в папке resources/sounds/
+                File soundFile = new File("resources/sounds/" + name);
                 if (!soundFile.exists()) {
-                    soundFile = new File("E:\\OSU_Question\\resources\\sounds\\" + name);
+                    // Если не нашли, ищем просто в корне проекта
+                    soundFile = new File(name);
                 }
+
                 if (!soundFile.exists()) {
+                    System.out.println("ОШИБКА: Звуковой эффект не найден -> " + name);
                     return;
                 }
 
                 AudioInputStream ais = AudioSystem.getAudioInputStream(soundFile);
                 Clip clip = AudioSystem.getClip();
                 clip.open(ais);
-                applyVolume(clip, settings.musicVolume);
+                applyVolume(clip, settings.hitVolume); // Используем hitVolume для эффектов
 
                 activeSfx.add(clip);
                 clip.start();
@@ -492,6 +491,8 @@ public class GameEngine {
                 clip.close();
                 activeSfx.remove(clip);
             } catch (Exception e) {
+                System.out.println("ОШИБКА ПРИ ПРОИГРЫВАНИИ ЭФФЕКТА: " + name);
+                e.printStackTrace();
             }
         }).start();
     }
